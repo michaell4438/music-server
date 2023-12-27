@@ -22,7 +22,7 @@ def get_config():
 
 # Get each playlist. A playlist is a dictionary with a name, id, and path
 def list_playlists(playlists):
-    return [playlist['name'] for playlist in playlists]
+    return [playlist['id'] for playlist in playlists]
 
 
 def get_playlist_by_name(playlists, name):
