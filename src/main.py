@@ -146,6 +146,15 @@ def download_playlists_route():
         fpath = os.path.join(os.getcwd(), f"{playlist_path}.tar.gz")
         return flask.send_file(fpath, as_attachment=True, download_name=f"{playlist['name']}.tar.gz")
 
+@app.route('/playlists/sync_all')
+def sync_all_playlists_route():
+    playlists = get_config()
+    for playlist in playlists:
+        command = subprocess.Popen(f"{sys.executable} -m spotdl sync sync.spotdl", shell=True, cwd=playlist['path'])
+        return_code = command.wait()
+        if return_code != 0:
+            return flask.Response(status=500)
+    return flask.Response(status=200)
 
 if __name__ == '__main__':
     app.run(port=44380)
