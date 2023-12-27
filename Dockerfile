@@ -1,0 +1,26 @@
+FROM ubuntu:latest
+LABEL authors="michael"
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install python3 and pip3
+RUN apt-get update && apt-get install -y python3 python3-pip
+
+# Install ffmpeg
+RUN apt-get install -y ffmpeg
+
+# Install any needed packages specified in requirements.txt
+RUN pip3 install --trusted-host pypi.python.org -r /app/requirements.txt
+
+# Make port 44380 available to the world outside this container
+EXPOSE 44380
+
+# Create a volume for the /app directory
+VOLUME /app
+
+# Set the working directory to /app
+WORKDIR /app
+
+# Run src/main.py when the container launches from the /app directory
+CMD ["python3", "src/main.py"]
