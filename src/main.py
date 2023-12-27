@@ -156,5 +156,24 @@ def sync_all_playlists_route():
             return flask.Response(status=500)
     return flask.Response(status=200)
 
+
+@app.route('/playlists/song_qty')
+def get_song_qty_route():
+    playlist_id = int(flask.request.args.get('id'))
+    playlist = get_playlist_by_id(get_config(), playlist_id)
+    if playlist is None:
+        return flask.Response(status=404)
+
+    playlist_path = playlist['path']
+
+    # Get the number of songs in the playlist
+    command = subprocess.Popen(f"ls -1 {playlist_path} | wc -l", shell=True, cwd=os.path.dirname(playlist_path), stdout=subprocess.PIPE)
+    return_code = command.wait()
+    if return_code != 0:
+        return flask.Response(status=500)
+    else:
+        return flask.Response(command.stdout.read(), status=200)
+
+
 if __name__ == '__main__':
     app.run(port=44380, host="0.0.0.0")
