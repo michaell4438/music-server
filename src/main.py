@@ -5,6 +5,14 @@ import flask
 import json
 import os
 
+import pywebio.platform
+import pywebio_battery
+import requests
+from pywebio.output import put_table, put_markdown, put_button, popup, close_popup, put_loading, put_scope, use_scope
+from pywebio.platform.flask import webio_view
+
+pywebio.platform.config(title="Music Server", theme="dark")
+
 filename = 'config/playlists.json'
 # If playlists.json doesn't exist, create it
 try:
@@ -167,13 +175,86 @@ def get_song_qty_route():
     playlist_path = playlist['path']
 
     # Get the number of songs in the playlist
-    command = subprocess.Popen(f"ls -1 {playlist_path} | wc -l", shell=True, cwd=os.path.dirname(playlist_path), stdout=subprocess.PIPE)
-    return_code = command.wait()
-    if return_code != 0:
-        return flask.Response(status=500)
-    else:
-        return flask.Response(command.stdout.read(), status=200)
+    count = len(os.listdir(playlist_path)) - 1
+    return flask.Response(str(count), status=200)
 
+
+def delete_playlist_confirmation(playlist_id):
+    if pywebio_battery.confirm("Are you sure you want to delete this playlist?"):
+        # Delete the playlist
+        requests.get(f"http://localhost:44380/playlists/delete?id={playlist_id}")
+        # Clear the current page and reload it
+        pywebio.output.clear()
+        web_console()
+
+
+def add_playlist_button(playlist_name, playlist_url):
+    with pywebio.output.popup("Adding playlist..."):
+        put_loading()
+    requests.post(f"http://localhost:44380/playlists/add?name={playlist_name}", data=playlist_url.encode('utf-8'))
+    close_popup()
+    pywebio.output.popup("Playlist added!")
+    pywebio.output.clear_scope("main")
+    render_main()
+
+
+def sync_all_playlists_button():
+    with use_scope("info"):
+        pywebio.output.put_info("Sync in progress...", closable=True)
+        requests.get(f"http://localhost:44380/playlists/sync_all")
+        pywebio.output.put_info("Sync complete!", closable=True)
+    pywebio.output.clear_scope("main")
+    render_main()
+
+
+def download_playlist_button(playlist_id):
+    with pywebio.output.popup("Preparing Download..."):
+        put_loading()
+        # Download the playlist
+        content = requests.get(f"http://localhost:44380/playlists/download?id={playlist_id}").content
+        pywebio.session.download("playlist.tar.gz", content)
+    close_popup()
+
+
+def render_main():
+    with use_scope("main"):
+        put_markdown("# Music Server")
+        put_markdown("## Playlists")
+        # Create a table of playlists with their names
+        playlists = get_config()
+
+        # Get a copy of the playlists without the path
+        playlists_copy = []
+        for playlist in playlists:
+            playlist_qty = requests.get(f"http://localhost:44380/playlists/song_qty?id={playlist['id']}")
+            playlists_copy.append([
+                playlist['name'],
+                playlist['id'],
+                str(playlist_qty.text),
+                put_button('Delete', color="danger", onclick=lambda: delete_playlist_confirmation(playlist['id'])),
+                put_button('Download', color="primary", onclick=lambda: download_playlist_button(playlist['id']))
+            ])
+
+        put_table(playlists_copy, header=['Name', 'ID', 'Songs'])
+
+        put_button("Sync All Playlists", onclick=sync_all_playlists_button)
+
+        put_markdown("## Add Playlist")
+        # Create a form to add a playlist
+        put_markdown("### Playlist Name")
+        pywebio.pin.put_input("playlist_name", type="text")
+        put_markdown("### Playlist URL")
+        pywebio.pin.put_input("playlist_url", type="text")
+        put_button("Add Playlist", onclick=lambda: add_playlist_button(pywebio.pin.pin['playlist_name'], pywebio.pin.pin['playlist_url']))
+
+
+def web_console():
+    put_scope("info")
+    put_scope("main")
+    render_main()
+
+
+app.add_url_rule('/', 'webio_view', webio_view(web_console),methods=['GET','POST'])
 
 if __name__ == '__main__':
     app.run(port=44380, host="0.0.0.0")
