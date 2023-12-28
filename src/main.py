@@ -8,12 +8,21 @@ import os
 import pywebio.platform
 import pywebio_battery
 import requests
-from pywebio.output import put_table, put_markdown, put_button, popup, close_popup, put_loading, put_scope, use_scope
+from pywebio.output import put_table, put_markdown, put_button, popup, close_popup, put_loading, put_scope, use_scope, \
+    put_text, put_buttons, put_row
+from pywebio.pin import put_radio
 from pywebio.platform.flask import webio_view
 
 pywebio.platform.config(title="Music Server", theme="dark")
 
 filename = 'config/playlists.json'
+
+if not os.path.exists('config'):
+    os.mkdir('config')
+
+if not os.path.exists('playlists'):
+    os.mkdir('playlists')
+
 # If playlists.json doesn't exist, create it
 try:
     with open(filename, 'r') as f:
@@ -21,7 +30,6 @@ try:
 except FileNotFoundError:
     with open(filename, 'w') as f:
         json.dump([], f)
-
 
 def get_config():
     with open(filename, 'r') as f:
@@ -209,6 +217,7 @@ def sync_all_playlists_button():
 
 def download_playlist_button(playlist_id):
     with pywebio.output.popup("Preparing Download..."):
+        put_text(f"Downloading playlist {playlist_id}...")
         put_loading()
         # Download the playlist
         content = requests.get(f"http://localhost:44380/playlists/download?id={playlist_id}").content
@@ -226,17 +235,26 @@ def render_main():
         # Get a copy of the playlists without the path
         playlists_copy = []
         for playlist in playlists:
+            playlist_id = playlist['id']
             playlist_qty = requests.get(f"http://localhost:44380/playlists/song_qty?id={playlist['id']}")
             playlists_copy.append([
                 playlist['name'],
                 playlist['id'],
                 str(playlist_qty.text),
-                put_button('Delete', color="danger", onclick=lambda: delete_playlist_confirmation(playlist['id'])),
-                put_button('Download', color="primary", onclick=lambda: download_playlist_button(playlist['id']))
             ])
-
         put_table(playlists_copy, header=['Name', 'ID', 'Songs'])
 
+        # Create a button which shows a popup to select a playlist to delete
+        put_markdown("### Download or Delete Playlist")
+        # Create a dropdown to select a playlist
+        playlist_names = [[f"{playlist['name']} ({playlist['id']})", playlist['id']] for playlist in playlists]
+        put_row([
+            put_radio("ID", options=playlist_names),
+            put_buttons(["Download", "Delete"], onclick=[lambda: download_playlist_button(pywebio.pin.pin['ID']), lambda: delete_playlist_confirmation(pywebio.pin.pin['ID'])]),
+            None
+        ])
+
+        put_markdown("### Sync All Playlists")
         put_button("Sync All Playlists", onclick=sync_all_playlists_button)
 
         put_markdown("## Add Playlist")
