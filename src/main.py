@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import threading
 from random import randint
 import flask
 import json
@@ -231,7 +232,7 @@ def render_main():
                 playlist['name'],
                 playlist['id'],
                 str(playlist_qty.text),
-                put_link("Download", f"http://localhost:44380/playlists/download?id={playlist_id}"),
+                put_link("Download", f"/playlists/download?id={playlist_id}"),
             ])
         put_table(playlists_copy, header=['Name', 'ID', 'Songs'])
 
@@ -267,3 +268,4 @@ app.add_url_rule('/', 'webio_view', webio_view(web_console),methods=['GET','POST
 
 if __name__ == '__main__':
     app.run(port=44380, host="0.0.0.0")
+    timer = threading.Timer(3600.0, lambda: requests.get(f"http://localhost:44380/playlists/sync_all"))
